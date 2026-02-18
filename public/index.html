@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="description" content="Pixel maze game - guide a cat through mazes collecting treats while avoiding dogs!">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <title>CatMaze</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #1a1a2e;
+      font-family: monospace;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #game-container {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+    canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      display: block;
+    }
+    #ui-overlay {
+      position: absolute; top: 0; left: 0;
+      width: 100%; padding: 8px 12px;
+      display: flex; justify-content: space-between; align-items: center;
+      color: #fff; font-size: 14px;
+      pointer-events: none; z-index: 10;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    }
+    #ui-overlay span { font-weight: bold; }
+    #mobile-controls {
+      position: absolute; bottom: 20px;
+      display: none; z-index: 10;
+    }
+    #mobile-controls button {
+      width: 56px; height: 56px;
+      background: rgba(255,255,255,0.15);
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 8px; color: #fff;
+      font-size: 22px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #mobile-controls button:active {
+      background: rgba(255,255,255,0.35);
+    }
+    .dpad { display: grid; grid-template-columns: 56px 56px 56px; gap: 4px; }
+    .dpad .empty { visibility: hidden; }
+    @media (pointer: coarse) {
+      #mobile-controls { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="ui-overlay">
+      <span id="hud-lives"></span>
+      <span id="hud-score"></span>
+      <span id="hud-level"></span>
+    </div>
+    <canvas id="game"></canvas>
+    <div id="mobile-controls">
+      <div class="dpad">
+        <div class="empty"></div>
+        <button data-dir="up">&#9650;</button>
+        <div class="empty"></div>
+        <button data-dir="left">&#9664;</button>
+        <button data-dir="down">&#9660;</button>
+        <button data-dir="right">&#9654;</button>
+      </div>
+    </div>
+  </div>
+  <script src="/game.js"></script>
+  <script src="/generate-icons.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js');
+    }
+  </script>
+</body>
+</html>

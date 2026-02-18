@@ -1,0 +1,16 @@
+{
+  "name": "catmaze",
+  "version": "1.0.0",
+  "description": "Pixel maze game - guide a cat through mazes collecting treats while avoiding dogs!",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "generate-icons": "node scripts/generate-icons.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
