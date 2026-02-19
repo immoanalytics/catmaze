@@ -181,66 +181,33 @@ const spriteHeart    = makeHeart(C.heart);
 const spriteHeartOff = makeHeart(C.heartOff);
 
 /* ============================================================
-   MAZE GENERATOR  (recursive back-tracker)
+   MAZE GENERATOR  (Bomberman-style open grid)
    ============================================================ */
 function generateMaze(cols, rows) {
-  // grid: 0 = wall, 1 = path
-  const grid = Array.from({length: rows}, () => new Uint8Array(cols));
-  const stack = [];
-  const dirs = [[0,-2],[0,2],[-2,0],[2,0]];
+  // Start fully open — everything is walkable floor
+  const grid = Array.from({length: rows}, () => new Uint8Array(cols).fill(1));
 
-  function inBounds(x, y) { return x > 0 && x < cols-1 && y > 0 && y < rows-1; }
-  function shuffle(a) { for (let i = a.length-1; i > 0; i--) { const j = Math.random()*i+1|0; [a[i],a[j]]=[a[j],a[i]]; } return a; }
+  // Solid border walls
+  for (let c = 0; c < cols; c++) { grid[0][c] = 0; grid[rows-1][c] = 0; }
+  for (let r = 0; r < rows; r++) { grid[r][0] = 0; grid[r][cols-1] = 0; }
 
-  // Step 1: recursive backtracker — generates a perfect spanning-tree maze
-  const sx = 1, sy = 1;
-  grid[sy][sx] = 1;
-  stack.push([sx, sy]);
-  while (stack.length) {
-    const [cx, cy] = stack[stack.length-1];
-    const neighbours = [];
-    for (const [dx, dy] of dirs) {
-      const nx = cx+dx, ny = cy+dy;
-      if (inBounds(nx, ny) && grid[ny][nx] === 0) neighbours.push([dx, dy, nx, ny]);
+  // Fixed pillar grid — every even row AND even col inside the border
+  // (exactly like Bomberman's indestructible blocks)
+  for (let r = 2; r < rows-1; r += 2) {
+    for (let c = 2; c < cols-1; c += 2) {
+      grid[r][c] = 0;
     }
-    if (neighbours.length === 0) { stack.pop(); continue; }
-    const [dx, dy, nx, ny] = shuffle(neighbours)[0];
-    grid[cy + dy/2][cx + dx/2] = 1;
-    grid[ny][nx] = 1;
-    stack.push([nx, ny]);
   }
 
-  // Step 2: collect every internal wall that separates two path tiles
-  // (these are the walls that, if removed, create a loop / shortcut)
-  const candidates = [];
+  // Random scattered blocks on the remaining open cells (~35%)
+  // Always keep the player's starting corner clear: (1,1) (2,1) (1,2)
   for (let r = 1; r < rows-1; r++) {
     for (let c = 1; c < cols-1; c++) {
-      if (grid[r][c] !== 0) continue;
-      // horizontal wall between two horizontal path tiles
-      if (grid[r][c-1] === 1 && grid[r][c+1] === 1) candidates.push([c, r]);
-      // vertical wall between two vertical path tiles
-      else if (grid[r-1][c] === 1 && grid[r+1][c] === 1) candidates.push([c, r]);
+      if (grid[r][c] === 0) continue;           // already a pillar
+      if (r === 1 && c <= 2) continue;           // protect start col
+      if (c === 1 && r <= 2) continue;           // protect start row
+      if (Math.random() < 0.35) grid[r][c] = 0; // random block
     }
-  }
-
-  // Step 3: open ~40% of those candidate walls — creates many loops to dodge through
-  shuffle(candidates);
-  const toOpen = Math.ceil(candidates.length * 0.40);
-  for (let i = 0; i < toOpen; i++) {
-    const [c, r] = candidates[i];
-    grid[r][c] = 1;
-  }
-
-  // Step 4: carve a few deliberate open rooms for breathing space
-  const roomCount = 3 + (Math.random()*2|0);
-  for (let i = 0; i < roomCount; i++) {
-    const rx = 3 + (Math.random()*(cols-8)|0);
-    const ry = 3 + (Math.random()*(rows-8)|0);
-    const rw = 2 + (Math.random()*2|0);
-    const rh = 2 + (Math.random()*2|0);
-    for (let dr = 0; dr < rh; dr++)
-      for (let dc = 0; dc < rw; dc++)
-        if (inBounds(rx+dc, ry+dr)) grid[ry+dr][rx+dc] = 1;
   }
 
   return grid;
@@ -252,9 +219,9 @@ function generateMaze(cols, rows) {
 
 const BONUS_COLS = 60;
 const BONUS_ROWS = 15;
-const GRAVITY    = 0.45;
-const JUMP_VEL   = -7.5;
-const PLAT_RUN   = 2.8;
+const GRAVITY    = 0.28;
+const JUMP_VEL   = -5.2;
+const PLAT_RUN   = 1.8;
 
 function generateBonusLevel() {
   // simple platformer level data
@@ -298,7 +265,7 @@ function generateBonusLevel() {
     enemies.push({
       x: 12 + i * 9 + Math.random()*4,
       y: BONUS_ROWS - 3,
-      vx: (Math.random() > 0.5 ? 1 : -1) * (0.8 + Math.random()*0.6),
+      vx: (Math.random() > 0.5 ? 1 : -1) * (0.4 + Math.random()*0.3),
       alive: true,
     });
   }
@@ -563,27 +530,39 @@ function updateMaze(dt) {
     }
   }
 
-  // dog movement
+  // dog movement — random wandering, no chasing
   for (const dog of dogs) {
     dog.moveTimer -= dt;
     if (dog.moveTimer <= 0) {
-      // try to move toward player with some randomness
-      const pdx = player.x - dog.x, pdy = player.y - dog.y;
-      let preferred = [];
-      if (Math.abs(pdx) > Math.abs(pdy)) { preferred = pdx > 0 ? [3,0,1,2] : [2,0,1,3]; }
-      else { preferred = pdy > 0 ? [1,2,3,0] : [0,2,3,1]; }
-      // add randomness
-      if (Math.random() < 0.35) preferred = preferred.sort(() => Math.random()-0.5);
+      // 65% chance: keep going in current direction; 35%: pick a new random direction
+      const allDirs = [0,1,2,3];
+      const others  = allDirs.filter(d => d !== dog.dir).sort(() => Math.random()-0.5);
+      const preferred = Math.random() < 0.65
+        ? [dog.dir, ...others]
+        : [...others, dog.dir];
 
+      let moved = false;
       for (const d of preferred) {
         const nx = dog.x + DX[d], ny = dog.y + DY[d];
         if (nx>=0 && nx<COLS && ny>=0 && ny<ROWS && maze[ny][nx]===1) {
           dog.x = nx; dog.y = ny; dog.dir = d;
           dog.frame = 1 - dog.frame;
+          moved = true;
           break;
         }
       }
-      dog.moveTimer = Math.max(200 - level * 15, 100);
+      // if completely boxed in, pick any valid direction
+      if (!moved) {
+        for (const d of allDirs) {
+          const nx = dog.x + DX[d], ny = dog.y + DY[d];
+          if (nx>=0 && nx<COLS && ny>=0 && ny<ROWS && maze[ny][nx]===1) {
+            dog.x = nx; dog.y = ny; dog.dir = d;
+            dog.frame = 1 - dog.frame;
+            break;
+          }
+        }
+      }
+      dog.moveTimer = 220; // fixed speed — not scaling with level
     }
 
     // collision with player
@@ -679,12 +658,11 @@ function updateBonus(dt) {
     }
   }
 
-  // fall into pit
+  // fall into pit — respawn at start, no life lost
   if (p.y > BONUS_ROWS * TILE) {
-    lives--;
     sfxHurt();
-    if (lives <= 0) { state = "gameover"; sfxGameOver(); return; }
     p.x = 2*TILE; p.y = (BONUS_ROWS-3)*TILE; p.vx = 0; p.vy = 0;
+    invulnTimer = 800;
   }
 
   // animation
