@@ -190,13 +190,12 @@ function generateMaze(cols, rows) {
   const dirs = [[0,-2],[0,2],[-2,0],[2,0]];
 
   function inBounds(x, y) { return x > 0 && x < cols-1 && y > 0 && y < rows-1; }
-
   function shuffle(a) { for (let i = a.length-1; i > 0; i--) { const j = Math.random()*i+1|0; [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
+  // Step 1: recursive backtracker — generates a perfect spanning-tree maze
   const sx = 1, sy = 1;
   grid[sy][sx] = 1;
   stack.push([sx, sy]);
-
   while (stack.length) {
     const [cx, cy] = stack[stack.length-1];
     const neighbours = [];
@@ -211,16 +210,37 @@ function generateMaze(cols, rows) {
     stack.push([nx, ny]);
   }
 
-  // open a few extra passages for wider play
-  for (let i = 0; i < Math.floor(cols * rows * 0.04); i++) {
-    const rx = (Math.random()*(cols-4)|0)+2;
-    const ry = (Math.random()*(rows-4)|0)+2;
-    if (grid[ry][rx] === 0) {
-      const wallNeighbors = [[1,0],[-1,0],[0,1],[0,-1]].filter(
-        ([dx,dy]) => inBounds(rx+dx,ry+dy) && grid[ry+dy][rx+dx] === 1
-      );
-      if (wallNeighbors.length >= 2) grid[ry][rx] = 1;
+  // Step 2: collect every internal wall that separates two path tiles
+  // (these are the walls that, if removed, create a loop / shortcut)
+  const candidates = [];
+  for (let r = 1; r < rows-1; r++) {
+    for (let c = 1; c < cols-1; c++) {
+      if (grid[r][c] !== 0) continue;
+      // horizontal wall between two horizontal path tiles
+      if (grid[r][c-1] === 1 && grid[r][c+1] === 1) candidates.push([c, r]);
+      // vertical wall between two vertical path tiles
+      else if (grid[r-1][c] === 1 && grid[r+1][c] === 1) candidates.push([c, r]);
     }
+  }
+
+  // Step 3: open ~40% of those candidate walls — creates many loops to dodge through
+  shuffle(candidates);
+  const toOpen = Math.ceil(candidates.length * 0.40);
+  for (let i = 0; i < toOpen; i++) {
+    const [c, r] = candidates[i];
+    grid[r][c] = 1;
+  }
+
+  // Step 4: carve a few deliberate open rooms for breathing space
+  const roomCount = 3 + (Math.random()*2|0);
+  for (let i = 0; i < roomCount; i++) {
+    const rx = 3 + (Math.random()*(cols-8)|0);
+    const ry = 3 + (Math.random()*(rows-8)|0);
+    const rw = 2 + (Math.random()*2|0);
+    const rh = 2 + (Math.random()*2|0);
+    for (let dr = 0; dr < rh; dr++)
+      for (let dc = 0; dc < rw; dc++)
+        if (inBounds(rx+dc, ry+dr)) grid[ry+dr][rx+dc] = 1;
   }
 
   return grid;
